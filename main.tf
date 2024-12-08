@@ -1,3 +1,15 @@
+terraform {
+  backend "s3" {
+    bucket = "my-tfstate-bucket-github"
+    key    = "terraform.tfstate"
+    region = "us-east-1"
+
+    dynamodb_table = "terraform-locks"
+
+    role_arn = "${ secrets.AWS_ROLE_ARN }"
+  }
+}
+
 # Create a VPC
 resource "aws_vpc" "main" {
   cidr_block = "10.0.0.0/16"

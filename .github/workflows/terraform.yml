@@ -13,6 +13,7 @@ permissions:
 env:
   TF_VERSION: 1.10.1
   AWS_REGION: us-east-1
+  TF_WORKING_DIRECTORY: ./infrastructure
 
 jobs:
   terraform:
@@ -36,29 +37,33 @@ jobs:
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
         aws-region: ${{ env.AWS_REGION }}
 
-    # Initialize Terraform
-    - name: Terraform Init
-      run: terraform init
-      
+    - name: Terraform Initialize
+      run: |
+        cd ${{ env.TF_WORKING_DIRECTORY }}
+        terraform init \
+          -backend-config="my-tfstate-bucket-github" \
+          -backend-config="key=terraform.tfstate" \
+          -backend-config="region=us-east-1"
+        
     # Validate Terraform configuration
     - name: Terraform Validate
-      run: terraform validate
-
-    # Generate Terraform Plan
-    - name: Terraform Plan
-      id: plan
       run: |
-        terraform plan -no-color -out=tfplan
-      continue-on-error: true
-
-    # Check Plan Status
-    - name: Plan Status
-      if: steps.plan.outcome == 'failure'
-      run: exit 1
-
-    # Apply Terraform changes (only on main branch and not a pull request)
+        cd ${{ env.TF_WORKING_DIRECTORY }}
+        terraform validate
+    
+    # Plan Terraform changes (for pull requests)
+    - name: Terraform Plan
+      if: github.event_name == 'pull_request'
+      run: |
+        cd ${{ env.TF_WORKING_DIRECTORY }}
+        terraform plan -out=tfplan
+      
+    # Apply Terraform changes (only on main branch)
     - name: Terraform Apply
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      run: terraform apply -auto-approve tfplan
+      run: |
+        cd ${{ env.TF_WORKING_DIRECTORY }}
+        terraform apply -auto-approve tfplan

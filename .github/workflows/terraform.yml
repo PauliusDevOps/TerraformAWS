@@ -19,51 +19,45 @@ jobs:
   terraform:
     name: Terraform Workflow
     runs-on: ubuntu-latest
-    
+
     steps:
-    # Checkout the repository
-    - name: Checkout Code
-      uses: actions/checkout@v4
+      # Checkout the repository
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-    # Setup Terraform
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
-      with:
-        terraform_version: ${{ env.TF_VERSION }}
-        
-    # Configure AWS Credentials
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-        aws-region: ${{ env.AWS_REGION }}
+      # Setup Terraform
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
 
-    - name: Terraform Initialize
-      run: |
-        cd ${{ env.TF_WORKING_DIRECTORY }}
-        terraform init \
-          -backend-config="my-tfstate-bucket-github" \
-          -backend-config="key=terraform.tfstate" \
-          -backend-config="region=us-east-1"
-        
-    # Validate Terraform configuration
-    - name: Terraform Validate
-      run: |
-        cd ${{ env.TF_WORKING_DIRECTORY }}
-        terraform validate
-    
-    # Plan Terraform changes (for pull requests)
-    - name: Terraform Plan
-      if: github.event_name == 'pull_request'
-      run: |
-        cd ${{ env.TF_WORKING_DIRECTORY }}
-        terraform plan -out=tfplan
-      
-    # Apply Terraform changes (only on main branch)
-    - name: Terraform Apply
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      run: |
-        cd ${{ env.TF_WORKING_DIRECTORY }}
-        terraform apply -auto-approve tfplan
+      # Configure AWS Credentials
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+
+      - name: Terraform Init
+        run: |
+          cd ${{ env.TF_WORKING_DIRECTORY }}
+          terraform init -backend-config="bucket=my-tfstate-bucket-github" -backend-config="key=terraform.tfstate" -backend-config="region=us-east-1" -backend-config="dynamodb_table=my-terraform-locks-table"
+
+      - name: Terraform Validate
+        run: |
+          cd ${{ env.TF_WORKING_DIRECTORY }}
+          terraform validate
+
+      - name: Terraform Plan
+        if: github.event_name == 'pull_request'
+        run: |
+          cd ${{ env.TF_WORKING_DIRECTORY }}
+          terraform plan -out=tfplan
+
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          cd ${{ env.TF_WORKING_DIRECTORY }}
+          terraform apply -auto-approve tfplan

@@ -1,32 +1,24 @@
 name: Terraform Infrastructure Deployment
 
-# Controls when the workflow will run
 on:
-  # Triggers the workflow on push to main branch
   push:
     branches: [ "main" ]
-  # Allows manual trigger from the Actions tab
+  pull_request:
+    branches: [ "main" ]
   workflow_dispatch:
 
-# Permissions for the workflow
 permissions:
   contents: read
 
-# Environment variables
 env:
   TF_VERSION: 1.10.1
   AWS_REGION: us-east-1
 
 jobs:
-  terraform-plan-and-apply:
-    name: Terraform Plan and Apply
+  terraform:
+    name: Terraform Workflow
     runs-on: ubuntu-latest
     
-    # Use environment secrets for AWS credentials
-    env:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-
     steps:
     # Checkout the repository
     - name: Checkout Code
@@ -56,15 +48,17 @@ jobs:
 
     # Generate Terraform Plan
     - name: Terraform Plan
-      run: terraform plan -out=tfplan
-      
-    # Apply Terraform changes (only on main branch)
-    - name: Terraform Apply
-      # Only apply if it's on the main branch and not a pull request
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      run: terraform apply -auto-approve tfplan
+      id: plan
+      run: |
+        terraform plan -no-color -out=tfplan
+      continue-on-error: true
 
-    # Optional: Add a step to comment on the commit with plan details
-    - name: Terraform Plan Status
+    # Check Plan Status
+    - name: Plan Status
       if: steps.plan.outcome == 'failure'
       run: exit 1
+
+    # Apply Terraform changes (only on main branch and not a pull request)
+    - name: Terraform Apply
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      run: terraform apply -auto-approve tfplan
